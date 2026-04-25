@@ -1,0 +1,426 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MULTI-TENANT
+// ─────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  cnpj      String?  @unique
+  plan      String   @default("starter")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  condominiums  Condominium[]
+
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SYNDIC
+  DOORMAN
+  RESIDENT
+}
+
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String
+  email        String    @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         UserRole  @default(RESIDENT)
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  unitResidents UnitResident[]
+  occurrences  Occurrence[]
+  reservations Reservation[]
+  accessLogs   AccessLog[]
+  notifications Notification[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONDOMÍNIO
+// ─────────────────────────────────────────────────────────────
+
+model Condominium {
+  id           String  @id @default(uuid())
+  tenantId     String
+  name         String
+  cnpj         String?
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  zipCode      String
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  blocks       Block[]
+  units        Unit[]
+  commonSpaces CommonSpace[]
+  invoices     Invoice[]
+  occurrences  Occurrence[]
+  visitors     Visitor[]
+  accessLogs   AccessLog[]
+  assemblies   Assembly[]
+
+  @@index([tenantId])
+  @@map("condominiums")
+}
+
+model Block {
+  id            String      @id @default(uuid())
+  condominiumId String
+  name          String
+  createdAt     DateTime    @default(now())
+
+  condominium   Condominium @relation(fields: [condominiumId], references: [id])
+  units         Unit[]
+
+  @@map("blocks")
+}
+
+enum UnitType {
+  APARTMENT
+  HOUSE
+  COMMERCIAL
+  GARAGE
+}
+
+model Unit {
+  id            String      @id @default(uuid())
+  condominiumId String
+  tenantId      String
+  blockId       String?
+  number        String
+  floor         Int?
+  type          UnitType    @default(APARTMENT)
+  fraction      Decimal     @default(0) @db.Decimal(10, 6)
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  condominium   Condominium @relation(fields: [condominiumId], references: [id])
+  block         Block?      @relation(fields: [blockId], references: [id])
+  residents     UnitResident[]
+  invoices      Invoice[]
+  occurrences   Occurrence[]
+  visitors      Visitor[]
+  pets          Pet[]
+
+  @@unique([condominiumId, blockId, number])
+  @@index([tenantId])
+  @@map("units")
+}
+
+model UnitResident {
+  id        String   @id @default(uuid())
+  unitId    String
+  userId    String
+  isOwner   Boolean  @default(false)
+  movedInAt DateTime @default(now())
+  movedOutAt DateTime?
+
+  unit      Unit     @relation(fields: [unitId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("unit_residents")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FINANCEIRO
+// ─────────────────────────────────────────────────────────────
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  tenantId      String
+  condominiumId String
+  unitId        String
+  reference     String        // "2024-01" (mês/ano)
+  dueDate       DateTime
+  amount        Decimal       @db.Decimal(10, 2)
+  discountAmount Decimal      @default(0) @db.Decimal(10, 2)
+  fineAmount    Decimal       @default(0) @db.Decimal(10, 2)
+  status        InvoiceStatus @default(PENDING)
+  barcode       String?
+  pixCode       String?
+  externalId    String?       // ID no Asaas/banco
+  paidAt        DateTime?
+  paidAmount    Decimal?      @db.Decimal(10, 2)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  condominium   Condominium   @relation(fields: [condominiumId], references: [id])
+  unit          Unit          @relation(fields: [unitId], references: [id])
+
+  @@index([tenantId, condominiumId])
+  @@map("invoices")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESERVAS
+// ─────────────────────────────────────────────────────────────
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model CommonSpace {
+  id            String   @id @default(uuid())
+  condominiumId String
+  name          String
+  description   String?
+  capacity      Int?
+  amount        Decimal  @default(0) @db.Decimal(10, 2)
+  isActive      Boolean  @default(true)
+  rules         String?
+
+  condominium   Condominium  @relation(fields: [condominiumId], references: [id])
+  reservations  Reservation[]
+
+  @@map("common_spaces")
+}
+
+model Reservation {
+  id          String            @id @default(uuid())
+  tenantId    String
+  spaceId     String
+  userId      String
+  date        DateTime          @db.Date
+  startTime   String
+  endTime     String
+  status      ReservationStatus @default(PENDING)
+  amount      Decimal           @default(0) @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  space       CommonSpace       @relation(fields: [spaceId], references: [id])
+  user        User              @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@map("reservations")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTROLE DE ACESSO
+// ─────────────────────────────────────────────────────────────
+
+enum AccessType {
+  FACIAL
+  QRCODE
+  BIOMETRIC
+  TAG
+  MANUAL
+}
+
+enum VisitorStatus {
+  EXPECTED
+  ENTERED
+  LEFT
+  DENIED
+}
+
+model Visitor {
+  id            String        @id @default(uuid())
+  tenantId      String
+  condominiumId String
+  unitId        String
+  name          String
+  document      String?
+  plate         String?
+  qrCode        String?       @unique
+  status        VisitorStatus @default(EXPECTED)
+  expectedAt    DateTime?
+  enteredAt     DateTime?
+  leftAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  condominium   Condominium   @relation(fields: [condominiumId], references: [id])
+  unit          Unit          @relation(fields: [unitId], references: [id])
+
+  @@index([tenantId, condominiumId])
+  @@map("visitors")
+}
+
+model AccessLog {
+  id            String     @id @default(uuid())
+  tenantId      String
+  condominiumId String
+  userId        String?
+  visitorId     String?
+  accessType    AccessType
+  direction     String     // IN | OUT
+  description   String?
+  createdAt     DateTime   @default(now())
+
+  condominium   Condominium @relation(fields: [condominiumId], references: [id])
+  user          User?       @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, condominiumId, createdAt])
+  @@map("access_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// OCORRÊNCIAS
+// ─────────────────────────────────────────────────────────────
+
+enum OccurrenceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model Occurrence {
+  id            String           @id @default(uuid())
+  tenantId      String
+  condominiumId String
+  unitId        String?
+  reportedBy    String
+  title         String
+  description   String
+  status        OccurrenceStatus @default(OPEN)
+  resolvedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  condominium   Condominium      @relation(fields: [condominiumId], references: [id])
+  unit          Unit?            @relation(fields: [unitId], references: [id])
+  reporter      User             @relation(fields: [reportedBy], references: [id])
+
+  @@index([tenantId, condominiumId])
+  @@map("occurrences")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ASSEMBLEIAS
+// ─────────────────────────────────────────────────────────────
+
+enum AssemblyStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+}
+
+model Assembly {
+  id            String         @id @default(uuid())
+  tenantId      String
+  condominiumId String
+  title         String
+  description   String?
+  scheduledAt   DateTime
+  status        AssemblyStatus @default(SCHEDULED)
+  minutesUrl    String?
+  createdAt     DateTime       @default(now())
+
+  condominium   Condominium    @relation(fields: [condominiumId], references: [id])
+  polls         Poll[]
+
+  @@map("assemblies")
+}
+
+model Poll {
+  id         String   @id @default(uuid())
+  assemblyId String
+  question   String
+  isMultiple Boolean  @default(false)
+  closesAt   DateTime?
+  createdAt  DateTime @default(now())
+
+  assembly   Assembly   @relation(fields: [assemblyId], references: [id])
+  options    PollOption[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id      String @id @default(uuid())
+  pollId  String
+  text    String
+  votes   Int    @default(0)
+
+  poll    Poll   @relation(fields: [pollId], references: [id])
+
+  @@map("poll_options")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTIFICAÇÕES
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PETS
+// ─────────────────────────────────────────────────────────────
+
+model Pet {
+  id        String   @id @default(uuid())
+  unitId    String
+  tenantId  String
+  name      String
+  species   String
+  breed     String?
+  photoUrl  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  unit      Unit     @relation(fields: [unitId], references: [id])
+
+  @@map("pets")
+}

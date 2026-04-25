@@ -1,0 +1,42 @@
+import { NestFactory } from '@nestjs/core'
+import { ValidationPipe, VersioningType } from '@nestjs/common'
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
+import { AppModule } from './app.module'
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule)
+
+  app.enableCors({
+    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+    credentials: true,
+  })
+
+  app.setGlobalPrefix(process.env.API_PREFIX || 'api/v1')
+
+  app.enableVersioning({ type: VersioningType.URI })
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  )
+
+  const config = new DocumentBuilder()
+    .setTitle('CondoFortis API')
+    .setDescription('API do sistema de gestão de condomínios CondoFortis')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build()
+
+  const document = SwaggerModule.createDocument(app, config)
+  SwaggerModule.setup('docs', app, document)
+
+  const port = process.env.PORT || 3001
+  await app.listen(port)
+  console.log(`🚀 API rodando em http://localhost:${port}`)
+  console.log(`📚 Swagger em http://localhost:${port}/docs`)
+}
+
+bootstrap()
