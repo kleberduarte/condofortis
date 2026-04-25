@@ -36,4 +36,10 @@ Thumbs.db
 *.swo
 
 # Prisma
-prisma/migrations/dev.db
+**/prisma/migrations/dev.db
+**/prisma/seed.js
+**/prisma/seed.js.map
+**/prisma/seed.d.ts
+
+# Redis
+dump.rdb

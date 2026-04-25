@@ -69,6 +69,19 @@ async function main() {
     },
   })
 
+  await prisma.user.upsert({
+    where: { email: 'porteiro@demo.com' },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      email: 'porteiro@demo.com',
+      passwordHash,
+      name: 'Carlos Porteiro',
+      role: UserRole.DOORMAN,
+      phone: '11999990003',
+    },
+  })
+
   const unit = await prisma.unit.create({
     data: {
       condominiumId: condominium.id,
@@ -94,9 +107,10 @@ async function main() {
   })
 
   console.log('✅ Seed concluído com sucesso!')
-  console.log(`📧 Admin: admin@condofortis.com / senha: senha123`)
-  console.log(`📧 Síndico: sindico@demo.com / senha: senha123`)
-  console.log(`📧 Morador: morador@demo.com / senha: senha123`)
+  console.log(`📧 Admin:    admin@condofortis.com / senha: senha123`)
+  console.log(`📧 Síndico:  sindico@demo.com      / senha: senha123`)
+  console.log(`📧 Porteiro: porteiro@demo.com      / senha: senha123`)
+  console.log(`📧 Morador:  morador@demo.com       / senha: senha123`)
 }
 
 main()

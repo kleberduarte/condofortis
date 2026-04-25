@@ -4,25 +4,76 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, DollarSign, Calendar,
-  Shield, FileText, Vote, Building2, Settings, LogOut,
+  Shield, FileText, Vote, Building2, Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Moradores', href: '/dashboard/moradores', icon: Users },
-  { name: 'Financeiro', href: '/dashboard/financeiro', icon: DollarSign },
-  { name: 'Reservas', href: '/dashboard/reservas', icon: Calendar },
-  { name: 'Controle de Acesso', href: '/dashboard/controle-acesso', icon: Shield },
-  { name: 'Ocorrências', href: '/dashboard/ocorrencias', icon: FileText },
-  { name: 'Assembleias', href: '/dashboard/assembleias', icon: Vote },
-  { name: 'Configurações', href: '/dashboard/configuracoes', icon: Settings },
+type NavItem = {
+  name: string
+  href: string
+  icon: React.ElementType
+  roles: string[]
+}
+
+const navigation: NavItem[] = [
+  {
+    name: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Moradores',
+    href: '/dashboard/moradores',
+    icon: Users,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Financeiro',
+    href: '/dashboard/financeiro',
+    icon: DollarSign,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Reservas',
+    href: '/dashboard/reservas',
+    icon: Calendar,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Controle de Acesso',
+    href: '/dashboard/controle-acesso',
+    icon: Shield,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Ocorrências',
+    href: '/dashboard/ocorrencias',
+    icon: FileText,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Assembleias',
+    href: '/dashboard/assembleias',
+    icon: Vote,
+    roles: ['SUPER_ADMIN', 'ADMIN', 'SYNDIC'],
+  },
+  {
+    name: 'Configurações',
+    href: '/dashboard/configuracoes',
+    icon: Settings,
+    roles: ['SUPER_ADMIN', 'ADMIN'],
+  },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
-  const logout = useAuthStore((s) => s.logout)
+  const user = useAuthStore((s) => s.user)
+
+  const visibleItems = navigation.filter(
+    (item) => !user?.role || item.roles.includes(user.role),
+  )
 
   return (
     <aside className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
@@ -34,7 +85,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
-        {navigation.map((item) => (
+        {visibleItems.map((item) => (
           <Link
             key={item.name}
             href={item.href}
@@ -51,15 +102,6 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={logout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 w-full transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-          Sair
-        </button>
-      </div>
     </aside>
   )
 }
