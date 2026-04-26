@@ -17,6 +17,9 @@
     "db:migrate": {
       "cache": false
     },
+    "db:reset": {
+      "cache": false
+    },
     "db:studio": {
       "cache": false,
       "persistent": true

@@ -9,6 +9,7 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test": "jest",
     "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset --force",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
