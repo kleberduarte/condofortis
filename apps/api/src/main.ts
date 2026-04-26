@@ -7,7 +7,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin:
+      process.env.CORS_ORIGINS?.split(',') ||
+      ['http://localhost:3000', 'http://127.0.0.1:3000'],
     credentials: true,
   })
 
@@ -33,9 +35,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config)
   SwaggerModule.setup('docs', app, document)
 
-  const port = process.env.PORT || 3001
-  await app.listen(port)
-  console.log(`🚀 API rodando em http://localhost:${port}`)
+  const port = Number(process.env.PORT) || 3001
+  // 0.0.0.0: evita "connection refused" no browser quando `localhost` resolve para ::1 e o Node só escuta em IPv4 (comum no Windows).
+  await app.listen(port, '0.0.0.0')
+  console.log(`🚀 API rodando em http://127.0.0.1:${port}`)
   console.log(`📚 Swagger em http://localhost:${port}/docs`)
 }
 

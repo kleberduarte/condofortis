@@ -2,7 +2,8 @@ import axios from 'axios'
 import { useAuthStore } from '@/store/auth.store'
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+  // 127.0.0.1 evita falha no Windows quando `localhost` prioriza IPv6 (::1) e a API só aceita IPv4.
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001/api/v1',
 })
 
 api.interceptors.request.use((config) => {

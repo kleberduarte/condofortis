@@ -135,7 +135,14 @@ export default function VisitantesPage() {
       setQrInput('')
       queryClient.invalidateQueries({ queryKey: ['portaria'] })
     },
-    onError: () => toast.error('QR Code inválido ou expirado'),
+    onError: (err: unknown) => {
+      const r = (err as { response?: { status?: number; data?: { message?: string } } })?.response
+      if (r?.status === 410 && r.data?.message) {
+        toast.error(r.data.message)
+        return
+      }
+      toast.error('QR Code inválido ou expirado')
+    },
   })
 
   function handleQrSubmit(e: React.FormEvent) {

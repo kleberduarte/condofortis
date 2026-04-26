@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { GoneException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
 import { EventsGateway } from '../events/events.gateway'
 import { CreateVisitorDto } from './dto/create-visitor.dto'
 import * as crypto from 'crypto'
+
+/** Janela após `expectedAt` em que o QR ainda é aceito na portaria. */
+const VISITOR_QR_VALID_MINUTES_AFTER_EXPECTED = 30
 
 @Injectable()
 export class VisitorsService {
@@ -101,10 +104,23 @@ export class VisitorsService {
     })
   }
 
+  private qrExpiresAt(expectedAt: Date): Date {
+    return new Date(expectedAt.getTime() + VISITOR_QR_VALID_MINUTES_AFTER_EXPECTED * 60_000)
+  }
+
   async authorize(qrCode: string) {
     const visitor = await this.prisma.visitor.findUnique({ where: { qrCode }, include: { unit: true } })
     if (!visitor) throw new NotFoundException('QR Code inválido')
     if (visitor.status === 'DENIED') throw new NotFoundException('Acesso negado')
+
+    if (visitor.status === 'EXPECTED' && visitor.expectedAt) {
+      const expiresAt = this.qrExpiresAt(visitor.expectedAt)
+      if (new Date() > expiresAt) {
+        throw new GoneException(
+          'QR Code expirado. O acesso é válido até 30 minutos após o horário previsto de chegada.',
+        )
+      }
+    }
 
     return visitor
   }

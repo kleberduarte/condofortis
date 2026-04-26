@@ -13,6 +13,13 @@ import 'dayjs/locale/pt-br'
 
 dayjs.locale('pt-br')
 
+const defaultExpectedAt = () => dayjs().add(1, 'hour').format('YYYY-MM-DDTHH:mm')
+
+function qrValidUntilFooter(expectedAt?: string | null) {
+  if (!expectedAt) return undefined
+  return `Válido na portaria até ${dayjs(expectedAt).add(30, 'minute').format('DD/MM/YYYY HH:mm')}`
+}
+
 type Visitor = {
   id: string
   name: string
@@ -38,7 +45,12 @@ export default function MoradorVisitantesPage() {
   const { unitId } = useResidentUnit()
   const queryClient = useQueryClient()
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ name: '', document: '', plate: '', expectedAt: '' })
+  const [form, setForm] = useState({
+    name: '',
+    document: '',
+    plate: '',
+    expectedAt: defaultExpectedAt(),
+  })
   const [qrVisible, setQrVisible] = useState<string | null>(null)
 
   const { data: visitors = [], isLoading } = useQuery<Visitor[]>({
@@ -64,7 +76,7 @@ export default function MoradorVisitantesPage() {
       toast.success('Visitante cadastrado! O QR Code foi gerado.')
       queryClient.invalidateQueries({ queryKey: ['my-visitors'] })
       setShowModal(false)
-      setForm({ name: '', document: '', plate: '', expectedAt: '' })
+      setForm({ name: '', document: '', plate: '', expectedAt: defaultExpectedAt() })
       const created = res.data as { id?: string; qrCode?: string }
       if (created?.id && created?.qrCode) setQrVisible(created.id)
     },
@@ -134,7 +146,11 @@ export default function MoradorVisitantesPage() {
                   </div>
                   {qrVisible === v.id && v.qrCode && (
                     <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                      <VisitorQrCodePanel value={v.qrCode} size={192} />
+                      <VisitorQrCodePanel
+                        value={v.qrCode}
+                        size={192}
+                        footer={qrValidUntilFooter(v.expectedAt)}
+                      />
                     </div>
                   )}
                 </div>
@@ -180,7 +196,12 @@ export default function MoradorVisitantesPage() {
                   </div>
                   {qrVisible === v.id && v.qrCode && (
                     <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl opacity-100">
-                      <VisitorQrCodePanel value={v.qrCode} size={192} caption="QR do cadastro (referência)" />
+                      <VisitorQrCodePanel
+                        value={v.qrCode}
+                        size={192}
+                        caption="QR do cadastro (referência)"
+                        footer={qrValidUntilFooter(v.expectedAt)}
+                      />
                     </div>
                   )}
                 </div>
@@ -244,19 +265,24 @@ export default function MoradorVisitantesPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Previsão de chegada</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Previsão de chegada *
+                </label>
                 <input
                   type="datetime-local"
                   value={form.expectedAt}
                   onChange={(e) => setForm((f) => ({ ...f, expectedAt: e.target.value }))}
                   className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
                 />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  O QR deixa de ser aceito na portaria 30 minutos após esse horário.
+                </p>
               </div>
             </div>
 
             <button
               onClick={() => createVisitor.mutate()}
-              disabled={!form.name || !unitId || createVisitor.isPending}
+              disabled={!form.name || !form.expectedAt || !unitId || createVisitor.isPending}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50"
             >
               {createVisitor.isPending ? 'Cadastrando…' : 'Gerar QR Code de Acesso'}

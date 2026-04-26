@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useAuthStore } from '@/store/auth.store'
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001'
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://127.0.0.1:3001'
 
 export function useSocket(condominiumId?: string) {
   const accessToken = useAuthStore((s) => s.accessToken)

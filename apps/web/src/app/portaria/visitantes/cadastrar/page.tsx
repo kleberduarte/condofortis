@@ -156,6 +156,9 @@ export default function CadastrarVisitantePage() {
               type="datetime-local"
               className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white min-h-[44px]"
             />
+            <p className="text-xs text-gray-500 mt-1.5">
+              O QR do visitante deixa de ser aceito 30 minutos após esse horário.
+            </p>
           </div>
         </div>
 
