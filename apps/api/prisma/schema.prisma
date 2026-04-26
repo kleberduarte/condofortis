@@ -110,6 +110,7 @@ model Block {
   condominium   Condominium @relation(fields: [condominiumId], references: [id])
   units         Unit[]
 
+  @@index([condominiumId])
   @@map("blocks")
 }
 
@@ -143,6 +144,8 @@ model Unit {
 
   @@unique([condominiumId, blockId, number])
   @@index([tenantId])
+  @@index([condominiumId])
+  @@index([blockId])
   @@map("units")
 }
 
@@ -157,6 +160,8 @@ model UnitResident {
   unit      Unit     @relation(fields: [unitId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
+  @@index([unitId])
+  @@index([userId])
   @@map("unit_residents")
 }
 
@@ -194,6 +199,7 @@ model Invoice {
   unit          Unit          @relation(fields: [unitId], references: [id])
 
   @@index([tenantId, condominiumId])
+  @@index([unitId, reference])
   @@map("invoices")
 }
 
@@ -221,6 +227,7 @@ model CommonSpace {
   condominium   Condominium  @relation(fields: [condominiumId], references: [id])
   reservations  Reservation[]
 
+  @@index([condominiumId])
   @@map("common_spaces")
 }
 
@@ -442,5 +449,7 @@ model Pet {
 
   unit      Unit     @relation(fields: [unitId], references: [id])
 
+  @@index([unitId])
+  @@index([tenantId])
   @@map("pets")
 }

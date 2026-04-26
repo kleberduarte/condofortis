@@ -17,13 +17,23 @@ export class FinancialController {
   @Get('invoices')
   @ApiQuery({ name: 'condominiumId', required: false })
   @ApiQuery({ name: 'status', required: false, enum: InvoiceStatus })
+  @ApiQuery({ name: 'skip', required: false })
+  @ApiQuery({ name: 'take', required: false })
   @ApiOperation({ summary: 'Listar cobranças' })
   findAll(
     @CurrentUser() user: any,
     @Query('condominiumId') condominiumId?: string,
     @Query('status') status?: InvoiceStatus,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
   ) {
-    return this.service.findAll(user.tenantId, condominiumId, status)
+    return this.service.findAll(
+      user.tenantId,
+      condominiumId,
+      status,
+      skip ? parseInt(skip, 10) : 0,
+      take ? parseInt(take, 10) : 50,
+    )
   }
 
   @Get('invoices/overdue')

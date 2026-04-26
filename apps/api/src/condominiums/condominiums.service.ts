@@ -32,13 +32,20 @@ export class CondominiumsService {
   }
 
   async update(id: string, tenantId: string, dto: Partial<CreateCondominiumDto>) {
-    await this.findOne(id, tenantId)
-    return this.prisma.condominium.update({ where: { id }, data: dto })
+    const updated = await this.prisma.condominium.updateMany({
+      where: { id, tenantId },
+      data: dto,
+    })
+    if (updated.count === 0) throw new NotFoundException('Condomínio não encontrado')
+    return this.prisma.condominium.findUnique({ where: { id } })
   }
 
   async deactivate(id: string, tenantId: string) {
-    await this.findOne(id, tenantId)
-    return this.prisma.condominium.update({ where: { id }, data: { isActive: false } })
+    const updated = await this.prisma.condominium.updateMany({
+      where: { id, tenantId },
+      data: { isActive: false },
+    })
+    if (updated.count === 0) throw new NotFoundException('Condomínio não encontrado')
   }
 
   // Blocos
