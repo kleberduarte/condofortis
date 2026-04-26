@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { APP_GUARD } from '@nestjs/core'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { BullModule } from '@nestjs/bull'
@@ -14,6 +15,10 @@ import { ReservationsModule } from './reservations/reservations.module'
 import { AccessModule } from './access/access.module'
 import { OccurrencesModule } from './occurrences/occurrences.module'
 import { NotificationsModule } from './notifications/notifications.module'
+import { AssembliesModule } from './assemblies/assemblies.module'
+import { EventsModule } from './events/events.module'
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
+import { RolesGuard } from './common/guards/roles.guard'
 
 @Module({
   imports: [
@@ -42,6 +47,12 @@ import { NotificationsModule } from './notifications/notifications.module'
     AccessModule,
     OccurrencesModule,
     NotificationsModule,
+    AssembliesModule,
+    EventsModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

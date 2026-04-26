@@ -1,15 +1,12 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { AccessService } from './access.service'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { UserRole } from '@condofortis/types'
 
 @ApiTags('Access')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('access')
 export class AccessController {
   constructor(private readonly service: AccessService) {}
@@ -28,7 +25,7 @@ export class AccessController {
   @Get('stats/:condominiumId')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SYNDIC, UserRole.DOORMAN)
   @ApiOperation({ summary: 'Estatísticas do dia' })
-  getDailyStats(@Query('condominiumId') condominiumId: string, @CurrentUser() user: any) {
+  getDailyStats(@Param('condominiumId') condominiumId: string, @CurrentUser() user: any) {
     return this.service.getDailyStats(user.tenantId, condominiumId)
   }
 

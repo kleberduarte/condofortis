@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { ArrowLeft, AlertTriangle, Send } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useCondominium } from '@/hooks/use-condominium'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -38,6 +39,7 @@ const PRIORITY_CONFIG = {
 
 export default function NovaOcorrenciaPage() {
   const router = useRouter()
+  const { condominiumId } = useCondominium()
 
   const {
     register,
@@ -54,7 +56,20 @@ export default function NovaOcorrenciaPage() {
   const selectedPriority = watch('priority')
 
   const createMutation = useMutation({
-    mutationFn: (data: FormData) => api.post('/occurrences', data),
+    mutationFn: (data: FormData) => {
+      const categoryLabel = CATEGORIES.find((c) => c.value === data.category)?.label ?? data.category
+      const priorityLabel = PRIORITY_CONFIG[data.priority as keyof typeof PRIORITY_CONFIG]?.label ?? data.priority
+      const descriptionFull = [
+        `[${categoryLabel}] [Prioridade: ${priorityLabel}]`,
+        data.location ? `Local: ${data.location}` : null,
+        data.description,
+      ].filter(Boolean).join('\n')
+      return api.post('/occurrences', {
+        condominiumId,
+        title: data.title,
+        description: descriptionFull,
+      })
+    },
     onSuccess: () => {
       toast.success('Ocorrência registrada — síndico notificado')
       router.push('/portaria')

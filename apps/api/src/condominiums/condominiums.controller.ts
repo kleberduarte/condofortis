@@ -1,18 +1,15 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, UseGuards,
+  Controller, Get, Post, Patch, Delete, Body, Param,
 } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { CondominiumsService } from './condominiums.service'
 import { CreateCondominiumDto } from './dto/create-condominium.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { UserRole } from '@condofortis/types'
 
 @ApiTags('Condominiums')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('condominiums')
 export class CondominiumsController {
   constructor(private readonly service: CondominiumsService) {}

@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, UserPlus, Search } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useCondominium } from '@/hooks/use-condominium'
 import { toast } from 'sonner'
 import dayjs from 'dayjs'
 
@@ -15,33 +16,40 @@ const schema = z.object({
   name: z.string().min(3, 'Nome obrigatório (mín. 3 caracteres)'),
   document: z.string().min(11, 'CPF obrigatório').max(14),
   unitId: z.string().min(1, 'Selecione uma unidade'),
-  scheduledAt: z.string().optional(),
-  notes: z.string().optional(),
+  expectedAt: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
 
 type Unit = { id: string; number: string; floor?: string; residentName?: string }
 
-async function fetchUnits(search: string): Promise<Unit[]> {
+async function fetchUnits(search: string, condominiumId: string): Promise<Unit[]> {
   if (!search || search.length < 1) return []
-  const { data } = await api.get(`/units?search=${encodeURIComponent(search)}&limit=10`)
-  return data
+  const params = new URLSearchParams({ search, limit: '10' })
+  if (condominiumId) params.set('condominiumId', condominiumId)
+  const { data } = await api.get(`/units?${params}`)
+  return (data as any[]).map((u: any) => ({
+    id: u.id,
+    number: u.number,
+    floor: u.floor?.toString(),
+    residentName: u.residents?.[0]?.user?.name,
+  }))
 }
 
 export default function CadastrarVisitantePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
+  const { condominiumId } = useCondominium()
   const preselectedUnit = searchParams.get('unit')
 
   const [unitSearch, setUnitSearch] = useState('')
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null)
 
   const { data: unitResults = [], isFetching: searchingUnits } = useQuery({
-    queryKey: ['units', 'search', unitSearch],
-    queryFn: () => fetchUnits(unitSearch),
-    enabled: unitSearch.length >= 1 && !selectedUnit,
+    queryKey: ['units', 'search', unitSearch, condominiumId],
+    queryFn: () => fetchUnits(unitSearch, condominiumId),
+    enabled: unitSearch.length >= 1 && !selectedUnit && !!condominiumId,
     staleTime: 10_000,
   })
 
@@ -66,12 +74,12 @@ export default function CadastrarVisitantePage() {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      scheduledAt: dayjs().format('YYYY-MM-DDTHH:mm'),
+      expectedAt: dayjs().format('YYYY-MM-DDTHH:mm'),
     },
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: FormData) => api.post('/access/visitors', data),
+    mutationFn: (data: FormData) => api.post('/visitors', { ...data, condominiumId }),
     onSuccess: () => {
       toast.success('Visitante registrado com sucesso')
       queryClient.invalidateQueries({ queryKey: ['portaria'] })
@@ -144,22 +152,9 @@ export default function CadastrarVisitantePage() {
               Data/Hora prevista
             </label>
             <input
-              {...register('scheduledAt')}
+              {...register('expectedAt')}
               type="datetime-local"
               className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white min-h-[44px]"
-            />
-          </div>
-
-          {/* Observações */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Observações
-            </label>
-            <textarea
-              {...register('notes')}
-              rows={2}
-              className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none"
-              placeholder="Ex: prestador de serviço, entregador…"
             />
           </div>
         </div>

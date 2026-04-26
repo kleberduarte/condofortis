@@ -6,14 +6,31 @@ import { CreateUnitDto } from './dto/create-unit.dto'
 export class UnitsService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(tenantId: string, condominiumId?: string) {
+  findAll(tenantId: string, condominiumId?: string, search?: string, limit?: number) {
     return this.prisma.unit.findMany({
-      where: { tenantId, ...(condominiumId ? { condominiumId } : {}), isActive: true },
+      where: {
+        tenantId,
+        ...(condominiumId ? { condominiumId } : {}),
+        isActive: true,
+        ...(search
+          ? {
+              OR: [
+                { number: { contains: search, mode: 'insensitive' } },
+                { residents: { some: { user: { name: { contains: search, mode: 'insensitive' } }, movedOutAt: null } } },
+              ],
+            }
+          : {}),
+      },
       include: {
         block: true,
-        residents: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
+        residents: {
+          where: { movedOutAt: null },
+          include: { user: { select: { id: true, name: true, email: true, phone: true } } },
+        },
+        pets: { where: { isActive: true } },
       },
       orderBy: [{ block: { name: 'asc' } }, { number: 'asc' }],
+      take: limit,
     })
   }
 
@@ -41,6 +58,17 @@ export class UnitsService {
   async update(id: string, tenantId: string, dto: Partial<CreateUnitDto>) {
     await this.findOne(id, tenantId)
     return this.prisma.unit.update({ where: { id }, data: dto })
+  }
+
+  findMine(userId: string, tenantId: string) {
+    return this.prisma.unit.findMany({
+      where: {
+        tenantId,
+        residents: { some: { userId, movedOutAt: null } },
+        isActive: true,
+      },
+      include: { block: true, condominium: { select: { id: true, name: true } } },
+    })
   }
 
   async addResident(unitId: string, userId: string, isOwner: boolean, tenantId: string) {

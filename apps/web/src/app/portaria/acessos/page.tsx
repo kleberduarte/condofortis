@@ -7,15 +7,26 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   Search, Plus, X, Clock3, LogIn, LogOut,
-  QrCode, Tag, Fingerprint, User,
+  QrCode, Tag, Fingerprint, User, Wifi, WifiOff,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useCondominium } from '@/hooks/use-condominium'
+import { useSocket } from '@/hooks/use-socket'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import dayjs from 'dayjs'
 import 'dayjs/locale/pt-br'
 
 dayjs.locale('pt-br')
+
+type AccessLogRaw = {
+  id: string
+  accessType: 'MANUAL' | 'QRCODE' | 'FACIAL' | 'BIOMETRIC' | 'TAG'
+  direction: 'IN' | 'OUT'
+  description?: string
+  createdAt: string
+  user?: { id: string; name: string; role: string } | null
+}
 
 type AccessLog = {
   id: string
@@ -25,7 +36,17 @@ type AccessLog = {
   direction: 'IN' | 'OUT'
   createdAt: string
   notes?: string
-  operatorName?: string
+}
+
+function mapLog(raw: AccessLogRaw): AccessLog {
+  return {
+    id: raw.id,
+    personName: raw.user?.name ?? raw.description ?? 'Desconhecido',
+    accessType: raw.accessType,
+    direction: raw.direction,
+    createdAt: raw.createdAt,
+    notes: raw.user ? raw.description : undefined,
+  }
 }
 
 const ACCESS_TYPE_CONFIG = {
@@ -45,16 +66,20 @@ const manualSchema = z.object({
 
 type ManualForm = z.infer<typeof manualSchema>
 
-async function fetchLogs(search: string, date: string): Promise<AccessLog[]> {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  if (date) params.set('date', date)
-  const { data } = await api.get(`/access/logs?${params}&limit=50`)
-  return data
+async function fetchLogs(search: string, condominiumId: string, limit = 50): Promise<AccessLog[]> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (condominiumId) params.set('condominiumId', condominiumId)
+  const { data } = await api.get<AccessLogRaw[]>(`/access/logs?${params}`)
+  const logs = data.map(mapLog)
+  if (!search) return logs
+  const s = search.toLowerCase()
+  return logs.filter((l) => l.personName.toLowerCase().includes(s))
 }
 
 export default function AcessosPage() {
   const queryClient = useQueryClient()
+  const { condominiumId } = useCondominium()
+  const { connected, on } = useSocket(condominiumId)
   const [search, setSearch] = useState('')
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -65,10 +90,21 @@ export default function AcessosPage() {
     return () => clearTimeout(t)
   }, [search])
 
+  useEffect(() => {
+    return on<AccessLogRaw>('access.new', (raw) => {
+      const log = mapLog(raw)
+      queryClient.setQueryData(
+        ['portaria', 'access-logs', debouncedSearch, condominiumId],
+        (old: AccessLog[] = []) => [log, ...old],
+      )
+    })
+  }, [on, condominiumId, debouncedSearch, queryClient])
+
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['portaria', 'access-logs', debouncedSearch, date],
-    queryFn: () => fetchLogs(debouncedSearch, date),
-    refetchInterval: 15_000,
+    queryKey: ['portaria', 'access-logs', debouncedSearch, condominiumId],
+    queryFn: () => fetchLogs(debouncedSearch, condominiumId),
+    enabled: !!condominiumId,
+    refetchInterval: connected ? false : 15_000,
     retry: 1,
   })
 
@@ -84,7 +120,12 @@ export default function AcessosPage() {
 
   const manualMutation = useMutation({
     mutationFn: (data: ManualForm) =>
-      api.post('/access/logs/manual', { ...data, accessType: 'MANUAL' }),
+      api.post('/access/logs', {
+        condominiumId,
+        accessType: 'MANUAL',
+        direction: data.direction,
+        description: [data.personName, data.notes].filter(Boolean).join(' — '),
+      }),
     onSuccess: () => {
       toast.success('Acesso registrado manualmente')
       setShowManualModal(false)
@@ -94,12 +135,15 @@ export default function AcessosPage() {
     onError: () => toast.error('Erro ao registrar acesso'),
   })
 
-  const inCount = logs.filter((l) => l.direction === 'IN').length
-  const outCount = logs.filter((l) => l.direction === 'OUT').length
+  const filteredLogs = date
+    ? logs.filter((l) => dayjs(l.createdAt).format('YYYY-MM-DD') === date)
+    : logs
+  const inCount = filteredLogs.filter((l) => l.direction === 'IN').length
+  const outCount = filteredLogs.filter((l) => l.direction === 'OUT').length
 
-  function groupByHour(logs: AccessLog[]) {
+  function groupByHour(items: AccessLog[]) {
     const groups: Record<string, AccessLog[]> = {}
-    logs.forEach((log) => {
+    items.forEach((log) => {
       const hour = dayjs(log.createdAt).format('HH:00')
       if (!groups[hour]) groups[hour] = []
       groups[hour].push(log)
@@ -107,15 +151,28 @@ export default function AcessosPage() {
     return groups
   }
 
-  const grouped = groupByHour(logs)
+  const grouped = groupByHour(filteredLogs)
   const hours = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
   return (
     <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Log de Acessos</h1>
+        <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full ${
+          connected
+            ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+            : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+        }`}>
+          {connected
+            ? <><Wifi className="w-3.5 h-3.5" /> Ao vivo</>
+            : <><WifiOff className="w-3.5 h-3.5" /> Offline</>}
+        </span>
+      </div>
+
       {/* ── Contador do dia ── */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 text-center">
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{logs.length}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{filteredLogs.length}</p>
           <p className="text-sm text-gray-500 mt-1">Total</p>
         </div>
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 text-center">
@@ -166,7 +223,7 @@ export default function AcessosPage() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : logs.length === 0 ? (
+      ) : filteredLogs.length === 0 ? (
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center text-gray-400">
           <Clock3 className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>Nenhum acesso registrado</p>

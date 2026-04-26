@@ -8,12 +8,26 @@ import {
   CheckCircle2, XCircle, Clock, X, ScanLine,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useCondominium } from '@/hooks/use-condominium'
 import { cn } from '@/lib/utils'
 import dayjs from 'dayjs'
 import 'dayjs/locale/pt-br'
 import { toast } from 'sonner'
 
 dayjs.locale('pt-br')
+
+type VisitorRaw = {
+  id: string
+  name: string
+  document?: string
+  status: 'EXPECTED' | 'ENTERED' | 'LEFT' | 'DENIED'
+  expectedAt?: string
+  unit: {
+    number: string
+    block?: { name: string } | null
+    residents?: { user: { name: string } }[]
+  }
+}
 
 type Visitor = {
   id: string
@@ -23,6 +37,18 @@ type Visitor = {
   residentName: string
   scheduledAt?: string
   status: 'EXPECTED' | 'ENTERED' | 'LEFT' | 'DENIED'
+}
+
+function mapVisitor(v: VisitorRaw): Visitor {
+  return {
+    id: v.id,
+    name: v.name,
+    document: v.document ?? '',
+    unitNumber: v.unit?.number ?? '',
+    residentName: v.unit?.residents?.[0]?.user?.name ?? '',
+    scheduledAt: v.expectedAt,
+    status: v.status,
+  }
 }
 
 const STATUS_CONFIG = {
@@ -40,25 +66,11 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'DENIED', label: 'Negados' },
 ]
 
-async function fetchVisitors(search: string, status: string): Promise<Visitor[]> {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  if (status) params.set('status', status)
-  const today = dayjs().format('YYYY-MM-DD')
-  params.set('date', today)
-  const { data } = await api.get(`/access/visitors?${params}`)
-  return data
-}
-
-async function authorizeQrCode(qrToken: string): Promise<Visitor> {
-  const { data } = await api.post('/access/authorize', { qrToken })
-  return data
-}
-
 export default function VisitantesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
+  const { condominiumId } = useCondominium()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -71,15 +83,25 @@ export default function VisitantesPage() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data: visitors = [], isLoading, refetch } = useQuery({
-    queryKey: ['portaria', 'visitors', debouncedSearch, statusFilter],
-    queryFn: () => fetchVisitors(debouncedSearch, statusFilter),
+  const { data: visitors = [], isLoading } = useQuery({
+    queryKey: ['portaria', 'visitors', debouncedSearch, statusFilter, condominiumId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (statusFilter) params.set('status', statusFilter)
+      if (condominiumId) params.set('condominiumId', condominiumId)
+      const today = dayjs().format('YYYY-MM-DD')
+      params.set('date', today)
+      const { data } = await api.get<VisitorRaw[]>(`/visitors?${params}`)
+      return data.map(mapVisitor)
+    },
+    enabled: !!condominiumId,
     refetchInterval: 20_000,
     retry: 1,
   })
 
   const checkInMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/access/visitors/${id}/checkin`),
+    mutationFn: (id: string) => api.patch(`/visitors/${id}/checkin`),
     onSuccess: () => {
       toast.success('Check-in registrado')
       queryClient.invalidateQueries({ queryKey: ['portaria'] })
@@ -88,7 +110,7 @@ export default function VisitantesPage() {
   })
 
   const checkOutMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/access/visitors/${id}/checkout`),
+    mutationFn: (id: string) => api.patch(`/visitors/${id}/checkout`),
     onSuccess: () => {
       toast.success('Saída registrada')
       queryClient.invalidateQueries({ queryKey: ['portaria'] })
@@ -97,7 +119,7 @@ export default function VisitantesPage() {
   })
 
   const denyMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/access/visitors/${id}/deny`),
+    mutationFn: (id: string) => api.patch(`/visitors/${id}/deny`),
     onSuccess: () => {
       toast.success('Visitante negado')
       queryClient.invalidateQueries({ queryKey: ['portaria'] })
@@ -106,9 +128,9 @@ export default function VisitantesPage() {
   })
 
   const qrMutation = useMutation({
-    mutationFn: authorizeQrCode,
-    onSuccess: (visitor) => {
-      toast.success(`${visitor.name} autorizado — Apto ${visitor.unitNumber}`)
+    mutationFn: (qrCode: string) => api.post<VisitorRaw>('/visitors/authorize', { qrCode }),
+    onSuccess: ({ data: v }) => {
+      toast.success(`${v.name} autorizado — Apto ${v.unit?.number}`)
       setQrModalOpen(false)
       setQrInput('')
       queryClient.invalidateQueries({ queryKey: ['portaria'] })
@@ -123,9 +145,7 @@ export default function VisitantesPage() {
 
   return (
     <div className="space-y-5">
-      {/* ── Filtros e ações ── */}
       <div className="flex flex-col sm:flex-row gap-3">
-        {/* Busca */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -137,7 +157,6 @@ export default function VisitantesPage() {
           />
         </div>
 
-        {/* Filtro status */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -148,7 +167,6 @@ export default function VisitantesPage() {
           ))}
         </select>
 
-        {/* Botões */}
         <div className="flex gap-2">
           <button
             onClick={() => setQrModalOpen(true)}
@@ -167,7 +185,6 @@ export default function VisitantesPage() {
         </div>
       </div>
 
-      {/* ── Lista ── */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         {isLoading ? (
           <div className="p-10 flex justify-center">
@@ -186,16 +203,14 @@ export default function VisitantesPage() {
 
               return (
                 <li key={v.id} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center font-bold flex-shrink-0">
                     {v.name[0].toUpperCase()}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 dark:text-white">{v.name}</p>
                     <p className="text-sm text-gray-500">
-                      CPF {v.document} · Apto {v.unitNumber}
+                      {v.document && `CPF ${v.document} · `}Apto {v.unitNumber}
                       {v.residentName && ` · ${v.residentName}`}
                     </p>
                     {v.scheduledAt && (
@@ -205,13 +220,11 @@ export default function VisitantesPage() {
                     )}
                   </div>
 
-                  {/* Badge */}
                   <span className={cn('inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0', cfg.badgeClass)}>
                     <StatusIcon className="w-3.5 h-3.5" />
                     {cfg.label}
                   </span>
 
-                  {/* Ações */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {v.status === 'EXPECTED' && (
                       <>
@@ -251,7 +264,6 @@ export default function VisitantesPage() {
         )}
       </div>
 
-      {/* ── Modal QR Code ── */}
       {qrModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">

@@ -1,18 +1,15 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query,
 } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 import { FinancialService } from './financial.service'
 import { CreateInvoiceDto, GenerateBulkInvoicesDto } from './dto/create-invoice.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { UserRole, InvoiceStatus } from '@condofortis/types'
 
 @ApiTags('Financial')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('financial')
 export class FinancialController {
   constructor(private readonly service: FinancialService) {}

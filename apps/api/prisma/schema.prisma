@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -53,12 +54,13 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
   unitResidents UnitResident[]
-  occurrences  Occurrence[]
-  reservations Reservation[]
-  accessLogs   AccessLog[]
+  occurrences   Occurrence[]
+  reservations  Reservation[]
+  accessLogs    AccessLog[]
   notifications Notification[]
+  pollVotes     UserVote[]
 
   @@index([tenantId])
   @@map("users")
@@ -80,6 +82,7 @@ model Condominium {
   city         String
   state        String
   zipCode      String
+  monthlyFee   Decimal  @default(0) @db.Decimal(10, 2)
   isActive     Boolean @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -368,21 +371,38 @@ model Poll {
   closesAt   DateTime?
   createdAt  DateTime @default(now())
 
-  assembly   Assembly   @relation(fields: [assemblyId], references: [id])
+  assembly   Assembly    @relation(fields: [assemblyId], references: [id])
   options    PollOption[]
+  userVotes  UserVote[]
 
   @@map("polls")
 }
 
 model PollOption {
-  id      String @id @default(uuid())
-  pollId  String
-  text    String
-  votes   Int    @default(0)
+  id        String @id @default(uuid())
+  pollId    String
+  text      String
+  votes     Int    @default(0)
 
-  poll    Poll   @relation(fields: [pollId], references: [id])
+  poll      Poll       @relation(fields: [pollId], references: [id])
+  userVotes UserVote[]
 
   @@map("poll_options")
+}
+
+model UserVote {
+  id        String   @id @default(uuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  poll      Poll       @relation(fields: [pollId], references: [id])
+  option    PollOption @relation(fields: [optionId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+
+  @@unique([pollId, userId])
+  @@map("user_votes")
 }
 
 // ─────────────────────────────────────────────────────────────

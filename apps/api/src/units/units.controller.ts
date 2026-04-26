@@ -1,27 +1,37 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Patch, Body, Param, Query,
 } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 import { UnitsService } from './units.service'
 import { CreateUnitDto } from './dto/create-unit.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { UserRole } from '@condofortis/types'
 
 @ApiTags('Units')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('units')
 export class UnitsController {
   constructor(private readonly service: UnitsService) {}
 
   @Get()
   @ApiQuery({ name: 'condominiumId', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'limit', required: false })
   @ApiOperation({ summary: 'Listar unidades' })
-  findAll(@CurrentUser() user: any, @Query('condominiumId') condominiumId?: string) {
-    return this.service.findAll(user.tenantId, condominiumId)
+  findAll(
+    @CurrentUser() user: any,
+    @Query('condominiumId') condominiumId?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.findAll(user.tenantId, condominiumId, search, limit ? Number(limit) : undefined)
+  }
+
+  @Get('mine')
+  @ApiOperation({ summary: 'Unidades do usuário logado' })
+  findMine(@CurrentUser() user: any) {
+    return this.service.findMine(user.id, user.tenantId)
   }
 
   @Get(':id')

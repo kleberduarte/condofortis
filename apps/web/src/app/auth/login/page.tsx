@@ -36,7 +36,12 @@ export default function LoginPage() {
       const tokens = await authService.login(data)
       setAuth(tokens)
       const payload = JSON.parse(atob(tokens.accessToken.split('.')[1]))
-      const destination = payload.role === 'DOORMAN' ? '/portaria' : '/dashboard'
+      const destination =
+        payload.role === 'DOORMAN'
+          ? '/portaria'
+          : payload.role === 'RESIDENT'
+            ? '/morador'
+            : '/dashboard'
       router.push(destination)
     } catch {
       toast.error('E-mail ou senha incorretos')

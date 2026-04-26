@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { EventsGateway } from '../events/events.gateway'
 import { AccessType } from '@condofortis/types'
 
 @Injectable()
 export class AccessService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private events: EventsGateway,
+  ) {}
 
   getLogs(tenantId: string, condominiumId?: string, limit = 50) {
     return this.prisma.accessLog.findMany({
@@ -17,7 +21,7 @@ export class AccessService {
     })
   }
 
-  register(data: {
+  async register(data: {
     tenantId: string
     condominiumId: string
     userId?: string
@@ -26,7 +30,12 @@ export class AccessService {
     direction: 'IN' | 'OUT'
     description?: string
   }) {
-    return this.prisma.accessLog.create({ data })
+    const log = await this.prisma.accessLog.create({
+      data,
+      include: { user: { select: { id: true, name: true, role: true } } },
+    })
+    this.events.emitToCondominium(data.condominiumId, 'access.new', log)
+    return log
   }
 
   getDailyStats(tenantId: string, condominiumId: string) {

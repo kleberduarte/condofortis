@@ -1,16 +1,84 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../common/prisma/prisma.service'
+import { EventsGateway } from '../events/events.gateway'
 import { CreateVisitorDto } from './dto/create-visitor.dto'
 import * as crypto from 'crypto'
 
 @Injectable()
 export class VisitorsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private events: EventsGateway,
+  ) {}
 
-  findAll(tenantId: string, condominiumId?: string) {
+  async findAll(
+    tenantId: string,
+    condominiumId?: string,
+    status?: string,
+    search?: string,
+    date?: string,
+    residentUserId?: string,
+  ) {
+    const dateFilter = date
+      ? {
+          createdAt: {
+            gte: new Date(`${date}T00:00:00.000Z`),
+            lt: new Date(`${date}T23:59:59.999Z`),
+          },
+        }
+      : {}
+
+    let unitIdIn: string[] | undefined
+    if (residentUserId) {
+      const units = await this.prisma.unit.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          residents: { some: { userId: residentUserId, movedOutAt: null } },
+        },
+        select: { id: true },
+      })
+      unitIdIn = units.map((u) => u.id)
+      if (unitIdIn.length === 0) return []
+    }
+
+    // Morador vê todo o histórico da unidade; portaria padrão oculta quem já saiu
+    const statusWhere =
+      status !== undefined && status !== ''
+        ? { status: status as any }
+        : residentUserId
+          ? {}
+          : { status: { not: 'LEFT' as const } }
+
     return this.prisma.visitor.findMany({
-      where: { tenantId, ...(condominiumId ? { condominiumId } : {}), status: { not: 'LEFT' } },
-      include: { unit: { include: { block: true } } },
+      where: {
+        tenantId,
+        ...(condominiumId ? { condominiumId } : {}),
+        ...(unitIdIn ? { unitId: { in: unitIdIn } } : {}),
+        ...statusWhere,
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { document: { contains: search, mode: 'insensitive' } },
+                { unit: { number: { contains: search, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+        ...dateFilter,
+      },
+      include: {
+        unit: {
+          include: {
+            block: true,
+            residents: {
+              where: { movedOutAt: null },
+              include: { user: { select: { id: true, name: true } } },
+              take: 1,
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     })
   }
@@ -43,22 +111,28 @@ export class VisitorsService {
 
   async checkin(id: string, tenantId: string) {
     const visitor = await this.findOne(id, tenantId)
-    return this.prisma.visitor.update({
+    const updated = await this.prisma.visitor.update({
       where: { id },
       data: { status: 'ENTERED', enteredAt: new Date() },
     })
+    this.events.emitToCondominium(visitor.condominiumId, 'visitor.update', updated)
+    return updated
   }
 
   async checkout(id: string, tenantId: string) {
-    await this.findOne(id, tenantId)
-    return this.prisma.visitor.update({
+    const visitor = await this.findOne(id, tenantId)
+    const updated = await this.prisma.visitor.update({
       where: { id },
       data: { status: 'LEFT', leftAt: new Date() },
     })
+    this.events.emitToCondominium(visitor.condominiumId, 'visitor.update', updated)
+    return updated
   }
 
   async deny(id: string, tenantId: string) {
-    await this.findOne(id, tenantId)
-    return this.prisma.visitor.update({ where: { id }, data: { status: 'DENIED' } })
+    const visitor = await this.findOne(id, tenantId)
+    const updated = await this.prisma.visitor.update({ where: { id }, data: { status: 'DENIED' } })
+    this.events.emitToCondominium(visitor.condominiumId, 'visitor.update', updated)
+    return updated
   }
 }

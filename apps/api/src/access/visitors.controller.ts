@@ -1,26 +1,29 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { VisitorsService } from './visitors.service'
 import { CreateVisitorDto } from './dto/create-visitor.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
-import { Public } from '../common/decorators/public.decorator'
 import { UserRole } from '@condofortis/types'
 
 @ApiTags('Visitors')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('visitors')
 export class VisitorsController {
   constructor(private readonly service: VisitorsService) {}
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SYNDIC, UserRole.DOORMAN)
-  @ApiOperation({ summary: 'Listar visitantes ativos' })
-  findAll(@CurrentUser() user: any, @Query('condominiumId') condominiumId?: string) {
-    return this.service.findAll(user.tenantId, condominiumId)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SYNDIC, UserRole.DOORMAN, UserRole.RESIDENT)
+  @ApiOperation({ summary: 'Listar visitantes ativos (morador: só da própria unidade)' })
+  findAll(
+    @CurrentUser() user: any,
+    @Query('condominiumId') condominiumId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('date') date?: string,
+  ) {
+    const residentUserId = user.role === UserRole.RESIDENT ? user.id : undefined
+    return this.service.findAll(user.tenantId, condominiumId, status, search, date, residentUserId)
   }
 
   @Post()

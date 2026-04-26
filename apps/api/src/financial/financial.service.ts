@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, UnprocessableEntityException } from '@nestjs/common'
 import { InjectQueue } from '@nestjs/bull'
 import { Queue } from 'bull'
 import { PrismaService } from '../common/prisma/prisma.service'
@@ -60,7 +60,13 @@ export class FinancialService {
 
     if (!condominium) throw new NotFoundException('Condomínio não encontrado')
 
-    // Busca taxa de condomínio (simplificado: usa fração ideal)
+    const fee = Number(condominium.monthlyFee)
+    if (fee <= 0) {
+      throw new UnprocessableEntityException(
+        'Taxa condominial não configurada. Defina o valor em Configurações > Condomínio antes de gerar cobranças em lote.',
+      )
+    }
+
     const invoices = []
     for (const unit of units) {
       const exists = await this.prisma.invoice.findFirst({
@@ -75,7 +81,7 @@ export class FinancialService {
           unitId: unit.id,
           reference: dto.reference,
           dueDate: new Date(dto.dueDate),
-          amount: 500, // valor fixo por enquanto — virá de orçamento
+          amount: fee,
         },
       })
       invoices.push(invoice)

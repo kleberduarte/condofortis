@@ -5,8 +5,11 @@ import { AuthTokens } from '@condofortis/types'
 interface AuthState {
   accessToken: string | null
   refreshToken: string | null
-  user: { name: string; email: string; role: string } | null
+  user: { id: string; name: string; email: string; role: string } | null
+  condominiumId: string | null
+  condominiumName: string | null
   setAuth: (tokens: AuthTokens) => void
+  setCondominium: (id: string, name: string) => void
   logout: () => void
 }
 
@@ -16,18 +19,25 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       user: null,
+      condominiumId: null,
+      condominiumName: null,
       setAuth: (tokens) => {
         const payload = JSON.parse(atob(tokens.accessToken.split('.')[1]))
         set({
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-          user: { name: payload.name || payload.email, email: payload.email, role: payload.role },
+          user: {
+            id: payload.sub,
+            name: payload.name || payload.email,
+            email: payload.email,
+            role: payload.role,
+          },
         })
-        // Cookie readable by middleware (non-http-only, same-origin only)
         document.cookie = `condofortis-role=${payload.role}; path=/; SameSite=Lax`
       },
+      setCondominium: (id, name) => set({ condominiumId: id, condominiumName: name }),
       logout: () => {
-        set({ accessToken: null, refreshToken: null, user: null })
+        set({ accessToken: null, refreshToken: null, user: null, condominiumId: null, condominiumName: null })
         document.cookie = 'condofortis-role=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT'
         window.location.href = '/auth/login'
       },

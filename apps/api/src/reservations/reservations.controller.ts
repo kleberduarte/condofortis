@@ -1,16 +1,13 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Delete, Body, Param, Query } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 import { ReservationsService } from './reservations.service'
 import { CreateReservationDto } from './dto/create-reservation.dto'
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'
-import { RolesGuard } from '../common/guards/roles.guard'
 import { Roles } from '../common/decorators/roles.decorator'
 import { CurrentUser } from '../common/decorators/current-user.decorator'
 import { UserRole } from '@condofortis/types'
 
 @ApiTags('Reservations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('reservations')
 export class ReservationsController {
   constructor(private readonly service: ReservationsService) {}
