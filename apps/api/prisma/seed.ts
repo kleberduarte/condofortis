@@ -10,7 +10,8 @@ import {
   ReservationStatus,
 } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
-import dayjs from 'dayjs'
+/** ts-node (CommonJS): default import de dayjs quebra em runtime */
+import dayjs = require('dayjs')
 
 const prisma = new PrismaClient()
 

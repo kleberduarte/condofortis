@@ -15,6 +15,7 @@
     "db:down": "docker compose down",
     "db:migrate": "turbo run db:migrate --filter=@condofortis/api",
     "db:reset": "turbo run db:reset --filter=@condofortis/api",
+    "db:seed": "turbo run db:seed --filter=@condofortis/api",
     "db:studio": "turbo run db:studio --filter=@condofortis/api"
   },
   "devDependencies": {
